@@ -1,0 +1,27 @@
+{
+    "name"         : "node-red-contribute-image-zone-editor",
+    "version"      : "1.0.0",
+    "description"  : "A Node-RED node to draw and edit (polygon) zones on images",
+    "dependencies": {
+        "image-type": "^4.1.0",
+        "is-base64": "^1.1.0"
+    },
+    "author": {
+        "name": "Bart Butenaers"
+    },
+    "license": "Apache-2.0",
+    "keywords": [ "node-red", "bounding", "box", "zone", "image", "intersection", "intersect", "collision", "polygon", "polyline", "detect" ],
+    "bugs": {
+        "url": "https://github.com/bartbutenaers/node-red-contribute-image-zone-editor/issues"
+    },
+    "homepage": "https://github.com/bartbutenaers/node-red-contribute-image-zone-editor",
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/bartbutenaers/node-red-contribute-image-zone-editor.git"
+    },
+    "node-red"     : {
+        "nodes": {
+            "image-zone-editor": "image_zone_editor.js"
+        }
+    }
+}
