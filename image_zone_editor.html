@@ -1,0 +1,606 @@
+<!--
+  Copyright 2020, Bart Butenaers
+  Licensed under the Apache License, Version 2.0 (the "License");
+  you may not use this file except in compliance with the License.
+  You may obtain a copy of the License at
+  http://www.apache.org/licenses/LICENSE-2.0
+  Unless required by applicable law or agreed to in writing, software
+  distributed under the License is distributed on an "AS IS" BASIS,
+  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+  See the License for the specific language governing permissions and
+  limitations under the License.
+-->
+<script type="text/javascript">
+    const POLYGON_POINT_RADIUS = 9;
+    
+    function getPolygonItemProperties(polygonItem) {
+        return {
+            name:        polygonItem.find(".node-input-polygon-name").val(),
+            fillColor:   polygonItem.find(".node-input-polygon-fillColor").val(),
+            opacity:     polygonItem.find(".node-input-polygon-opacity").val(),
+            render:      polygonItem.find(".node-input-polygon-render").prop('checked'),
+            points:      polygonItem.find(".node-input-polygon-points").val()
+        }
+    }
+    
+    // The points variable contains a string (e.g. " 112,79 112,79 196,193 ..."), since it is used for the SVG polygon.
+    // Let's convert that to an array of point objects (e.g. [{x:112, y:79}, {x:112, y:79}, {x:196, y:193}, ...]).
+    function pointsStringToArray(pointsString) {
+        pointsString = (pointsString || "").trim().split(" ");
+        
+        var pointsArray = [];
+        pointsString.forEach(function(pointString) {
+            var coordinates = pointString.split(",")
+            pointsArray.push({x: parseInt(coordinates[0]), y: parseInt(coordinates[1])});
+        });
+        
+        return pointsArray;
+    }
+    
+    // The points variable contains an array of objects (e.g. [{x:112, y:79}, {x:112, y:79}, {x:196, y:193}, ...]).
+    // We need to convert that to a string (e.g. " 112,79 112,79 196,193 ..."), since it is used for the SVG polygon.
+    function pointsArrayToString(pointsArray) {
+        var pointsString = "";
+        
+        (pointsArray || []).forEach(function(point) {
+            pointsString += " ";
+            pointsString += point.x;
+            pointsString += ",";
+            pointsString += point.y;
+        });
+        
+        return pointsString;
+    }
+    
+    // Get the index of the polygon point near the point (i.e. within the threshold distance)
+    function getPolygonPointNear(polygon, point) {
+        var thresholdDistanceSquared = POLYGON_POINT_RADIUS * POLYGON_POINT_RADIUS * 2;
+        for (var i = 0; i < polygon.length; i++) {
+            var polygonPoint = polygon[i];
+            var dx = polygonPoint.x - point.x;
+            var dy = polygonPoint.y - point.y;
+            if (dx*dx + dy*dy < thresholdDistanceSquared)
+                return i;
+        }
+        return null;
+    }
+
+    // Get the polygon edge that near the point (i.e. within the threshold distance).
+    // The indexes of the edge start-and endpoint are returned.
+    function getPolygonEdgeNear(polygon, point) {
+        var thresholdDistanceSquared = POLYGON_POINT_RADIUS * POLYGON_POINT_RADIUS * 2;
+        for (var i = 0; i < polygon.length; i++) {
+            var startPoint = polygon[i];
+            var endPoint = polygon[(i + 1) % polygon.length];
+            if (distanceToEdgeSquared(startPoint, endPoint, point) < thresholdDistanceSquared)
+                return {startIndex: i, endIndex: (i + 1) % polygon.length};
+        }
+        return null;
+    }
+    
+    // Distance from the point to the edge [startPoint, endPoint] (see http://paulbourke.net/geometry/pointlineplane/)
+    function distanceToEdgeSquared(startPoint, endPoint, point) {
+        var dx = endPoint.x - startPoint.x;
+        var dy = endPoint.y - startPoint.y;
+        
+        if (dx == 0 || dy == 0) {
+            return Number.POSITIVE_INFNITY;
+        }
+
+        var u = ((point.x - startPoint.x) * dx + (point.y - startPoint.y) * dy) / (dx * dx + dy * dy);
+
+        if (u < 0 || u > 1) {
+            return Number.POSITIVE_INFINITY;
+        }
+
+        var x = startPoint.x + u * dx;
+        var y = startPoint.y + u * dy;
+
+        return Math.pow(point.x - x, 2) + Math.pow(point.y - y, 2);
+    }
+    
+    // Determine whether a specified point is inside a specified polygon.
+    // (See https://github.com/substack/point-in-polygon/blob/master/flat.js)
+    function pointInPolygon(point, polygon) {
+        var inside = false;
+        var start = 0;
+        var end = polygon.length;
+        var len = (end-start)/2;
+        for (var i = 0, j = len - 1; i < len; j = i++) {
+            var xi = polygon[start+i*2+0], yi = polygon[start+i*2+1];
+            var xj = polygon[start+j*2+0], yj = polygon[start+j*2+1];
+            var intersect = ((yi > point.y) !== (yj > point.y))
+                && (point.x < (xj - xi) * (point.y - yi) / (yj - yi) + xi);
+            if (intersect) inside = !inside;
+        }
+        return inside;
+    };
+            
+    RED.nodes.registerType('image-zone-editor',{
+        category: 'function',
+        color: '#a6bbcf',
+        defaults: {
+            inputField: {value:"payload", validate: RED.validators.typedInput("inputFieldType")},
+            outputField: {value:"payload", validate: RED.validators.typedInput("outputFieldType")},
+            inputFieldType: {value:"msg"},
+            outputFieldType: {value:"msg"},
+            polygons: {value: []},
+            name: {value:""}
+        },
+        inputs:1,
+        outputs:1,
+        icon: "font-awesome/fa-bookmark",
+        label: function() {
+            return this.name || "image zone";
+        },
+        oneditprepare: function() { 
+            var node = this;
+            
+            node.editorMode = 'NONE';
+            
+            // The no-image-available is a free image (https://commons.wikimedia.org/wiki/File:No-image-available.png)
+            
+            
+            
+            // Show the inputField value in a typedinput element (dropdown with only 'msg')
+            $("#node-input-inputFieldType").val(this.inputField);
+            $("#node-input-inputField").typedInput({
+                default: 'msg',
+                typeField: $("#node-input-inputFieldType"),
+                types:['msg']
+            });
+            $("#node-input-inputField").typedInput('type',this.inputFieldType);
+       
+            // Show the outputField value in a typedinput element (dropdown with only 'msg')
+            $("#node-input-outputFieldType").val(this.outputField);
+            $("#node-input-outputField").typedInput({
+                default: 'msg',
+                typeField: $("#node-input-outputFieldType"),
+                types:['msg']
+            });
+            $("#node-input-outputField").typedInput('type',this.outputFieldType);
+
+            node.svg = $("#svg_drawing");
+            node.backgroundImage = $("#background_image");
+            
+            // Create a dummy svg point, which we can use afterwards for coordinate transformations
+            node.point = node.svg[0].createSVGPoint();
+
+            // Temporary string containing all polygon points that have been added already during polygon creation, i.e. all points where
+            // we have clicked with the mouse.  It does NOT contain the current (moving) mouse location, which is not confirmed yet by a click...
+            node.allConfirmedSvgPolygonPoints = '';
+
+// TODO de events aan de image koppelen -> image moet altijd in de svg zitten.  
+            node.backgroundImage.on('mousedown', function (event) {
+                // Determine the current mouse position within the SVG coordinate system
+                node.point = movePointToEventPosition(node.svg, node.point, event);
+                
+                var selectedPolygonItem = $("#node-polygons-container").editableList('items')[node.selectedIndex];
+                
+                // Get the current SVG polygon points, which might have been updated by the user mouse movements
+                var pointsString = node.selectedSvgPolygon.getAttribute('points') || '';
+
+                switch (node.editorMode) {
+                    case "CREATE":
+                        // Store the updated SVG polygon points in the editableList item (as a string)
+                        selectedPolygonItem.find(".node-input-polygon-points").val(pointsString);
+                        break;
+                    case "EDIT":
+                        var pointsArray = pointsStringToArray(pointsString);
+                        
+                        // The following mechanism is based on https://codepen.io/HansMuller/pen/lDfzt
+                        
+                        // Check whether there is a polygon (vertex) point near the clicked location.
+                        node.selectedPointIndex = getPolygonPointNear(pointsArray, node.point);
+                        
+                        if (node.selectedPointIndex == null) {
+                            // So there is no polygon (vertex) point nearby.  Let's check whether there is a polygon edge near the clicked location
+                            var edge = getPolygonEdgeNear(pointsArray, node.point)
+                            
+                            if (edge != null) {
+                                // There is an edge nearby, so insert a new point at the clicked location (which splits that edge in two parts)
+                                pointsArray.splice(edge.startIndex + 1, 0, {x: Math.round(node.point.x), y: Math.round(node.point.y)});
+                                
+                                // Update the confirmed polygon points, since a new inserted point has been confirmed
+                                pointsString = pointsArrayToString(pointsArray);       
+
+                                // Store the updated polygon points in the editableList item (as a string)
+                                selectedPolygonItem.find(".node-input-polygon-points").val(pointsString);
+                        
+                                // Show immediately the updated polygon points immediately in the SVG polygon
+                                node.selectedSvgPolygon.setAttribute('points', pointsString);
+                            }
+                        }
+                        else {
+                            // When an existing polygon point was clicked with SHIFT key down, then that point should be removed
+                            if (event.shiftKey) {
+                                // Remove the selected point from the array
+                                pointsArray.splice(node.selectedPointIndex, 1);
+                                var pointsString = pointsArrayToString(pointsArray);
+                                
+                                // Store the polygon without the removed point in the editableList item (as a string)
+                                selectedPolygonItem.find(".node-input-polygon-points").val(pointsString);
+                                
+                                // Show immediately the SVG polygon points (without the removed point at the selected index)
+                                node.selectedSvgPolygon.setAttribute("points", pointsString);
+                                
+                                // The selected point is removed, so it cannot be edited anymore
+                                node.selectedPointIndex = null;
+                            }
+                        }
+                        break;
+                }
+            });
+            
+            node.backgroundImage.on('mouseup', function (event) {
+                // Determine the current mouse position within the SVG coordinate system
+                node.point = movePointToEventPosition(node.svg, node.point, event);
+                
+                var selectedPolygonItem = $("#node-polygons-container").editableList('items')[node.selectedIndex];
+                
+                // Get the current SVG polygon points, which might have been updated by the user mouse movements
+                var pointsString = node.selectedSvgPolygon.getAttribute('points') || '';
+
+                switch (node.editorMode) {
+                    case "EDIT":
+                        if (node.selectedPointIndex != null) {
+                            // Store the polygon points (with the updated point) in the editableList item (as a string)
+                            selectedPolygonItem.find(".node-input-polygon-points").val(pointsString);                        
+                        }
+                        
+                        // Stop editing the selected polygon point
+                        node.selectedPointIndex = null;
+                                      
+                        break;
+                }
+            });
+            
+            node.backgroundImage.on('mousemove', function(event) {
+                // Determine the current mouse position (as string) within the SVG coordinate system
+                node.point = movePointToEventPosition(node.svg, node.point, event);
+                        
+                switch(node.editorMode) {
+                    case "CREATE":
+                        // Get the existing list of points in the polygon (as string), i.e. all the clicked points without the 
+                        // temporary polygon point (which is following the mouse cursor)
+                        var selectedPolygonItem = $("#node-polygons-container").editableList('items')[node.selectedIndex];
+                        var pointsString = selectedPolygonItem.find(".node-input-polygon-points").val();
+
+                        // In creation mode, the last point of the SVG polygon should follow the mouse cursor.
+                        // This is achieved by appending the current mouse position continiously to the end of the already confirmed polygon points.
+                        pointsString = pointsString + " " + Math.round(node.point.x) + "," + Math.round(node.point.y);
+                        node.selectedSvgPolygon.setAttribute('points', pointsString);
+                        break;
+                    case "EDIT":
+                        if (node.selectedPointIndex != null) {
+                            // Get the current SVG polygon points
+                            var pointsString = node.selectedSvgPolygon.getAttribute('points') || '';
+                        
+                            // The polygon point at the selected index should be edited to match the current mouse position
+                            var pointsArray = pointsStringToArray(pointsString);
+                            pointsArray[node.selectedPointIndex] = {x: Math.round(node.point.x), y: Math.round(node.point.y)};
+                            var pointsString = pointsArrayToString(pointsArray);
+                            
+                            // Set the SVG polygon points (with the update point at the selected index)
+                            node.selectedSvgPolygon.setAttribute("points", pointsString);
+                        }
+                }
+            });
+            
+            $(document).bind("keydown", function() {
+            //node.svg.on('keydown', function(event) {
+                if (node.editorMode == "CREATE") {
+                    if (event.key == "Escape") {
+                        // Stop creating, switch to editing (and keep the markers)
+                        node.editorMode = "EDIT";
+                    
+                        // Get the existing list of points in the polygon (as string), i.e. all the clicked points without the 
+                        // temporary polygon point (which is following the mouse cursor)
+                        var selectedPolygonItem = $("#node-polygons-container").editableList('items')[node.selectedIndex];
+                        var pointsString = selectedPolygonItem.find(".node-input-polygon-points").val()
+                        
+                        // Only show these existing points in the SVG polygon, i.e. remove the temporary polygon point (which was following the mouse cursor)
+                        node.selectedSvgPolygon.setAttribute('points', pointsString);
+                    }
+                }
+            });
+            
+            $("#node-available-polygons").on("change", function (e) {
+                // Remember which polygon item has been selected in the dropdown (the dropdown option value contains the index of the item in the editableList)
+                node.selectedIndex = parseInt(this.value);
+
+                if (node.selectedIndex >= 0) {
+                    var selectedPolygonItem = $("#node-polygons-container").editableList('items')[node.selectedIndex];
+                    node.allConfirmedSvgPolygonPoints = selectedPolygonItem.find(".node-input-polygon-points").val();            
+                    
+                    // Remove the markers on all polygons in the svg drawing
+                    var allSvgPolygons = node.svg.find("polygon");
+                    allSvgPolygons.attr('marker-start', 'none');
+                    allSvgPolygons.attr('marker-mid',   'none');
+                    allSvgPolygons.attr('marker-end',   'none');
+
+                    // Remember which polygon shape is currently being edited in the SVG drawing
+                    node.selectedSvgPolygon = node.svg.find("#polygon_" + node.selectedIndex)[0];
+                    
+                    var svgPolygonPoints = node.selectedSvgPolygon.getAttribute('points') || '';
+                    
+                    if (svgPolygonPoints.trim() === '') {
+                        // When the SVG polygon has no points yet, we will need to create the polygon in the SVG from scratch
+                        node.editorMode = "CREATE";
+                    }
+                    else {
+                        // Allow the user to edit the current existing SVG polygon
+                        node.editorMode = "EDIT";
+                        // TODO show a text "click on the editor to start drawing the polygon"                    
+                    }
+                    
+                    // A (circle) marker should be displayed on every point of the selected polygon
+                    node.selectedSvgPolygon.setAttribute('marker-start', 'url(#markerCircle)');
+                    node.selectedSvgPolygon.setAttribute('marker-mid',   'url(#markerCircle)');
+                    node.selectedSvgPolygon.setAttribute('marker-end',   'url(#markerCircle)');
+                }
+            });
+
+            // Show tabsheets
+            node.tabs = RED.tabs.create({
+                id: "node-polygon-tabs",
+                onchange: function(tab) {
+                    node.currentTabId = tab.id;
+
+                    //console.log("tabs.onchange",tab);
+                    // Show only the content (i.e. the children) of the selected tabsheet, and hide the others
+                    $("#node-polygon-tabs-content").children().hide();
+                    $("#" + tab.id).show();
+                    
+                    if(tab.id == "node-polygon-tab-editor") {
+                        // Remove all previous polygons from the SVG drawing
+                        node.svg.find("polygon").remove();
+    
+                        // Remove all previous options from the dropdown list
+                        $('#node-available-polygons').empty();
+
+                        var polygonList = $("#node-polygons-container").editableList('items');
+                        for (var i = 0; i < polygonList.length; i++) {
+                            var polygonItem = polygonList[i];
+                            
+                            // Show the polygon from the editableList in the dropdown list (option value is the index in the editableList)
+                            var name = polygonItem.find(".node-input-polygon-name").val();
+                            $('#node-available-polygons').append($("<option></option>").attr("value", i).text(name));
+                            
+                            // Draw the polygon in the SVG editor (whose id contains the index of the polygon in the dropdown list), only if it has points already.
+                            // Note that even new polygons (which have no points yet) will also be added to the SVG drawing.
+                            var polygonProperties = getPolygonItemProperties(polygonItem);
+                            
+                            var svgPolygon = document.createElementNS("http://www.w3.org/2000/svg", "polygon");
+                            svgPolygon.setAttributeNS(null, 'id',           "polygon_" + i);
+                            svgPolygon.setAttributeNS(null, 'fill',         polygonProperties.fillColor);
+                            svgPolygon.setAttributeNS(null, 'fill-opacity', polygonProperties.opacity + "%");
+                            svgPolygon.setAttributeNS(null, 'stroke',       polygonProperties.fillColor);
+                            svgPolygon.setAttributeNS(null, 'stroke-width', 1);
+                            svgPolygon.setAttributeNS(null, 'marker-start', 'none');
+                            svgPolygon.setAttributeNS(null, 'marker-mid',   'none');
+                            svgPolygon.setAttributeNS(null, 'marker-end',   'none');
+                            svgPolygon.setAttributeNS(null, 'points',       polygonProperties.points);
+                            node.svg.append(svgPolygon);    
+                        }
+                        
+                        // Make sure the dropdown 'change' even handler is triggered, to setup everything for the currently selected polygon item
+                        $("#node-available-polygons").change();
+                    }
+
+                    // Make sure the content of the tabsheet nicely fills the available area
+                    //updateEditorHeight(node);
+                }
+            });
+            node.tabs.addTab({
+                id: "node-polygon-tab-editablelist",
+                label: "Definitions"
+            });
+            node.tabs.addTab({
+                id: "node-polygon-tab-editor",
+                label: "Editor"
+            });
+            
+            var polygonList = $("#node-polygons-container").css('min-height','150px').css('min-width','450px').editableList({
+                header: $("<div>").css({"margin-left":"6px"}).append($.parseHTML(
+                    "<div style='width:25%; margin-left:5px; display: inline-grid'><b>Name</b></div>" +
+                    "<div style='width:7%; margin-left:5px; display: inline-grid'><b>Color</b></div>" +  
+                    "<div style='width:10%; margin-left:5px; display: inline-grid'><b>Opacity</b></div>" +
+                    "<div style='width:10%; margin-left:5px; display: inline-grid'><b>Render</b></div>" 
+                )),
+                addItem: function(container, i, polygon) {
+                    // Add a new row to the editableList
+                    var row = $('<div/>').appendTo(container);
+                    
+                    // When polygon === {} then we have a new list item (i.e. user pressed the 'add' button)
+                    if (Object.keys(polygon).length === 0) {
+                        // Apply a default random hex color (see https://css-tricks.com/snippets/javascript/random-hex-color/)
+                        polygon.fillColor = "#" + Math.floor(Math.random()*16777215).toString(16);
+                        polygon.opacity = 50;
+                        polygon.points = "";
+                    }
+                    
+                    // Column 1
+                    var nameField = $('<input/>',{class:"node-input-polygon-name",type:"text",placeholder:"unique name"})
+                        .css({"width":"25%","margin-left":"5px","margin-right":"5px"}).appendTo(row);
+                    nameField.prop('required',true);
+                    nameField.val(polygon.name);
+                    
+                    // Column 2
+                    var fillColorField = $('<input/>',{class:"node-input-polygon-fillColor",type:"color"})
+                        .css({"width":"7%","margin-left":"5px","margin-right":"5px"}).appendTo(row);
+                    fillColorField.val(polygon.fillColor);
+                    
+                    // Column 3
+                    var opacityField = $('<input/>',{class:"node-input-polygon-opacity",type:"number"})
+                        .attr({"max":100, "min":0})
+                        .css({"width":"10%","margin-left":"5px","margin-right":"5px"}).appendTo(row);
+                    opacityField.prop('required',true);
+                    opacityField.val(polygon.opacity);
+                    
+                    // Column 4
+                    var renderField = $('<input/>',{class:"node-input-polygon-render",type:"checkbox"})
+                        .css({"width":"10%","margin-left":"5px","margin-right":"5px"}).appendTo(row);
+                    renderField.prop('checked', polygon.render);
+
+                    // Column 5: hidden column (to store the polygon points)
+                    // The points are stored here as string (instead of array), because DOM attribute values are always serialized to a string anyway
+                    var pointsField = $('<input/>',{class:"node-input-polygon-points",type:"hidden"}).appendTo(row);
+                    var pointsAsString = pointsArrayToString(polygon.points);
+                    pointsField.val(pointsAsString);
+                },
+                removable: true
+            });
+
+            // Add all the polygons into the editableList
+            if (this.polygons) {
+                this.polygons.forEach(function (polygon, index) {
+                    polygonList.editableList('addItem', polygon);
+                });
+            }
+            
+            function movePointToEventPosition(svg, point, event) {
+                point.x = event.clientX;
+                point.y = event.clientY;
+                return point.matrixTransform(svg[0].getScreenCTM().inverse())
+            }
+
+            /*$("#node-button-select-polygon").on("click", function (e) {
+                var allSvgPolygons = node.svg.find("polygon");
+                
+                for (var i = 0; i < allSvgPolygons.length; i++) {
+                    var polygon = allSvgPolygons[i];
+
+                    var pointsString = polygon.attr("points");
+                    var pointsArray = pointsStringToArray(pointsString);
+                    
+                    if (pointInPolygon(point, polygon)) {
+                        $("#node-available-polygons").val(i);
+                        //$("#node-available-polygons").change();
+                        break;
+                    }
+                }
+            });*/
+
+            $("#node-button-remove-polygon").on("click", function (e) {
+                var answer = confirm("Are you sure you want to remove the points of the selected polygon?");
+                if (answer == true) {
+                    // Remove all the points from the polygon in the SVG drawing
+                    node.selectedSvgPolygon.setAttribute('points', "");
+                 
+                    // Remove all the points from the polygon item in the editableList
+                    var selectedPolygonItem = $("#node-polygons-container").editableList('items')[node.selectedIndex];
+                    selectedPolygonItem.find(".node-input-polygon-points").val('');
+                    
+                    // Make sure that everything (i.e. mouse event listeners...) is aware of the changed item                    
+                    $("#node-available-polygons").change();
+                    
+                    // If the polygon was being edited and the removed, we should create it again
+                    node.editorMode = "CREATE";
+                }
+            });
+            
+            $("#node-button-refresh-image").on("click", function (e) {
+                // Since dots are not allowed in an url, we will replace them by underscores
+                var nodeId = node.id.replace(".", "_");
+                    
+                $.ajax({
+                    type: "GET",
+                    url: "image_zone_editor/image/" + nodeId, 
+                    success: function(response, status, xhr){ 
+                        var contentType = xhr.getResponseHeader("content-type") || "";
+
+                        var dataUrl = 'data:' + contentType + ';base64,' + response;
+                        
+                        var svgImage = node.backgroundImage[0];
+                        svgImage.setAttributeNS(null,'x','0');
+                        svgImage.setAttributeNS(null,'y','0');
+                        svgImage.setAttributeNS(null,'height','100%');
+                        svgImage.setAttributeNS(null,'width','100%');
+                        svgImage.setAttributeNS('http://www.w3.org/1999/xlink', 'xlink:href', dataUrl);
+                        //svgImage.setAttributeNS(null, 'visibility', 'visible');
+                    },
+                    error: function(xhr, status, errorThrown) {
+                        RED.notify("Cannot get the image: <br/>" + xhr.responseText, "error");
+                    }
+                });
+            });
+        },
+        oneditsave: function() {
+            var node = this;
+
+            // Copy all the polygons from the editableList to this node
+            node.polygons = [];
+            var polygonList = $("#node-polygons-container").editableList('items');
+            polygonList.each(function(i) {
+                var polygonItem = $(this);
+                var polygonProperties = getPolygonItemProperties(polygonItem);
+
+                polygonProperties.points = pointsStringToArray(polygonProperties.points);
+                
+                node.polygons.push(polygonProperties);
+            });
+        }
+    });
+</script>
+
+<script type="text/x-red" data-template-name="image-zone-editor">
+    <div class="form-row">
+        <label for="node-input-inputField"><i class="fa fa-picture-o"></i> Input image</label>
+        <input id="node-input-inputField" type="text" style="width: 70%">
+        <input id="node-input-inputFieldType" type="hidden">
+    </div>
+    <div class="form-row">
+        <label for="node-input-outputField"><i class="fa fa-bookmark"></i> Output polygons</label>
+        <input id="node-input-outputField" type="text" style="width: 70%">
+        <input id="node-input-outputFieldType" type="hidden">
+    </div>
+    <div class="form-row">
+        <label for="node-input-name"><i class="icon-tag"></i> Name</label>
+        <input type="text" id="node-input-name" placeholder="Name">
+    </div>
+    </br>
+    <div class="form-row">
+        <!-- Tabsheets -->
+        <ul style="background: #fff; min-width: 600px; margin-bottom: 20px;" id="node-polygon-tabs"></ul>
+    </div>
+    <div id="node-polygon-tabs-content" style="min-height: 150px">
+        <!-- Content of all tabsheets -->
+        <div id="node-polygon-tab-editablelist" class="node-polygon-tab-content" style="position: relative; margin-top: 30px;">
+            <div class="form-row form-row-auto-height">
+                <!-- Table with polygons -->
+                <ol id="node-polygons-container"></ol>
+            </div>  
+        </div>
+        <div id="node-polygon-tab-editor" class="node-polygon-tab-content" style="position: relative; margin-top: 30px;">
+            <div class="form-row">
+                <label for="node-available-polygons"><i class="fa fa-wrench"></i> Zones</label>
+                <select id="node-available-polygons" style="width: 70%">
+                    <! –– The select options will be dynamically added ––>
+                </select>
+            </div>
+            <div class="form-row">
+                <button id="node-button-remove-polygon" class="editor-button" style="margin-top: 4px;" title="Remove zone">
+                    <i class="fa fa-trash"></i>    
+                </button>
+                <button id="node-button-refresh-image" class="editor-button" style="margin-top: 4px;" title="Refresh image">
+                    <i class="fa fa-picture-o"></i>    
+                </button>
+            </div>
+            <div class="form-row">
+                <svg id="svg_drawing" tabindex="0" style="width:100%; height:300px; border:1px; background-color: lightgrey">
+                    <defs>
+                        <marker id="markerCircle" markerWidth="8" markerHeight="8" refX="5" refY="5">
+                            <circle cx="5" cy="5" r="3" style="stroke: #ff0000; fill:#EC7063;"/>
+                        </marker>
+                    </defs>
+                    <image id="background_image" x="0" y="0" style="max-width:100%; max-height:100%" />
+                </svg>
+            </div>
+        </div>
+    </div>
+</script>
+
+<script type="text/x-red" data-help-name="image-zone-editor">
+
+</script>
