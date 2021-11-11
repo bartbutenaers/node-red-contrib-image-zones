@@ -516,7 +516,7 @@
                         svgImage.setAttributeNS(null,'x','0');
                         svgImage.setAttributeNS(null,'y','0');
                         svgImage.setAttributeNS(null,'height','100%');
-                        svgImage.setAttributeNS(null,'width','100%');
+                        svgImage.setAttributeNS(null,'width','100%'); 
                         svgImage.setAttributeNS('http://www.w3.org/1999/xlink', 'xlink:href', dataUrl);
                         //svgImage.setAttributeNS(null, 'visibility', 'visible');
                     },
@@ -544,7 +544,7 @@
     });
 </script>
 
-<script type="text/x-red" data-template-name="image-zone-editor">
+<script type="text/html" data-template-name="image-zone-editor">
     <div class="form-row">
         <label for="node-input-inputField"><i class="fa fa-picture-o"></i> Input image</label>
         <input id="node-input-inputField" type="text" style="width: 70%">
@@ -588,14 +588,16 @@
                 </button>
             </div>
             <div class="form-row">
-                <svg id="svg_drawing" tabindex="0" style="width:100%; height:300px; border:1px; background-color: lightgrey">
-                    <defs>
-                        <marker id="markerCircle" markerWidth="8" markerHeight="8" refX="5" refY="5">
-                            <circle cx="5" cy="5" r="3" style="stroke: #ff0000; fill:#EC7063;"/>
-                        </marker>
-                    </defs>
-                    <image id="background_image" x="0" y="0" style="max-width:100%; max-height:100%" />
-                </svg>
+                <div style="position: relative; width: 100%; vertical-align: middle; margin: 0;">
+                    <svg id="svg_drawing" tabindex="0" viewBox="0 0 400 300" preserveAspectRatio="xMinYMin meet" style="display: inline-block; position: absolute; top: 0; left: 0;">
+                        <defs>
+                            <marker id="markerCircle" markerWidth="8" markerHeight="8" refX="5" refY="5">
+                                <circle cx="5" cy="5" r="3" style="stroke: #ff0000; fill:#EC7063;"/>
+                            </marker>
+                        </defs>
+                        <image id="background_image" x="0" y="0" width="400" height="300"/>
+                    </svg>
+                </div> 
             </div>
         </div>
     </div>
