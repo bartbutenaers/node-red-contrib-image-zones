@@ -15,28 +15,61 @@
  **/
  module.exports = function(RED) {
     var settings = RED.settings;
-    const imageType = require('image-type');
     const isBase64  = require('is-base64');
+    const sizeOf = require('image-size')
 
     function ImageZoneEditorNode(config) {
         RED.nodes.createNode(this,config);
         this.inputField  = config.inputField;
         this.outputField = config.outputField;
         this.polygons    = config.polygons;
+        this.imageWidth  = parseInt(config.imageWidth);
+        this.imageHeight = parseInt(config.imageHeight);
 
         var node = this;
+        
+        var numberOfZones = node.polygons.length;
+        var statusText = numberOfZones + " zone";
+        if (numberOfZones !== 1) {
+            statusText += "s";
+        }
+        node.status({fill:"blue", shape:"dot", text:statusText});
+        
+        // The default resolution of the SVG is 400x300 (in case never a background image has been loaded)
+        if (node.imageWidth === -1) node.imageWidth = 400;
+        if (node.imageHeight === -1) node.imageHeight = 300;
+        
+        // The polygons are drawn in an SVG of size 400x300, and the image has been stretched/shrinked to fit into that SVG.
+        // This means the polygon point coordinates need to stretched/shrinked the same way, to make sure they match the real image size.
+        var widthConversionFactor = node.imageWidth / 400;
+        var heightConversionFactor = node.imageHeight / 300;
+        node.polygons.forEach(function(polygon) {
+            polygon.points.forEach(function (point) {
+                point.x = point.x * widthConversionFactor;
+                point.y = point.y * heightConversionFactor;
+            });
+        });
 
         node.on("input", function(msg) {
+            var inputImage;
+            
             try {
                 // Get the image from the specified input location.
                 // Keep a reference to the last image, to be able to get a snapshot image from the editor frontend
-                node.lastImage = RED.util.evaluateNodeProperty(node.inputField, "msg", this, msg);
+                var inputImage = RED.util.evaluateNodeProperty(node.inputField, "msg", this, msg);
             } 
             catch(err) {
                 node.error("Error getting image from msg." + node.inputField + " : " + err.message);
                 return;
             }
-   
+            
+            // TODO input validation
+
+            if (inputImage) {
+                // Pass the new image to all the available listeners
+                node.emit('image_arrived', inputImage);
+            }
+                
             try {
                 // Create a clone of the polygon array, to avoid race conflicts afterwards
                 var clonedPolygons = node.polygons.slice();
@@ -49,8 +82,12 @@
                 return;
             }
             
-            node.send(msg);
+            node.send([msg, null]);
         });
+        
+        node.on('close', function() {
+            this.removeAllListeners("image_arrived");
+		});
     }
 
     RED.nodes.registerType("image-zone-editor", ImageZoneEditorNode);
@@ -67,34 +104,71 @@
             return res.end("Svg node with id=" + nodeId + " cannot be found");
         }
         
-        var lastImage = polygonEditorNode.lastImage;
-        
-        if (!lastImage) {
-            res.writeHead(404);
-            return res.end("No images have been passed yet through node with id = " + nodeId);
-        }
+        // We cannot simply keep a reference to the last image (when an input msg arrives), and return that to the client.
+        // Because by the time the 'refresh image' button is clicked, that image will have been passed already through the next nodes 
+        // in the flow.  Those nodes might have changed thr message meanwhile, e.g. drawed the polygon on the image.  That is
+        // not what we want, since we want to show the original untouched input image.  To solve that we will add a listeners
+        // that is called when a new image arrives in an input message (within a limited timeout interval).
 
-        // When the image is base64 encoded, we need to decode it (unfortunately) to a buffer in order to be able to determine the mime type
-        if (isBase64(lastImage)) {
-            lastImage = Buffer.from(lastImage, 'base64');
-        }
-        
-        try {
-            var mimeType = imageType(lastImage).mime;
-        }
-        catch(err) {
-            res.writeHead(404);
-            return res.end("Cannot determine the mime type of the last image");           
-        }
-
-        // Convert the image buffer to a base64 encoded string to avoid special characters becoming corrupt during data transfer
-        lastImage = new Buffer(polygonEditorNode.lastImage).toString('base64');
+        // When the timeout time has passed, don't wait any longer for new images to arrive.
+        // Note that the timeout time should be smaller than the timeout of the $.ajax call in the flow editor client code!
+        timeoutTimer = setTimeout(function() {
+            timeoutTimer = null;
+            polygonEditorNode.removeListener('image_arrived', imageArrivedListener);
             
-        // Pass the mime type, which is required by the SVG editor in order to be able to create a data url for the image
-        res.setHeader("Content-Type", mimeType);
-        res.setHeader("Content-Length", lastImage.length);
-        res.writeHead(200);
+            res.writeHead(404);
+            return res.end("No image has arrived during the specified time interval");  
+        }, 5000);
+        
+        var imageArrivedListener = function(newImage) {
+            if (timeoutTimer) {
+                // A new input image has arrived (within 3000 msec), so the timeout handler isn't necessary anymore
+                clearTimeout(timeoutTimer);
+                timeoutTimer = null;
+                polygonEditorNode.removeListener('image_arrived', imageArrivedListener);
 
-        res.end(lastImage);
+                // When the image is base64 encoded, we need to decode it (unfortunately) to a buffer in order to be able to determine the mime type
+                if (isBase64(newImage)) {
+                    newImage = Buffer.from(newImage, 'base64');
+                }
+
+                try {
+                    var imageInfo = sizeOf(newImage);
+                }
+                catch(err) {
+                    res.writeHead(404);
+                    return res.end("Cannot collect information about the input image");           
+                }
+
+                // Only image/jpeg is recognised as the actual mime type for JPEG files.
+                imageInfo.type = imageInfo.type.replace("jpg", "jpeg");
+
+                // Convert the image buffer to a base64 encoded string to avoid special characters becoming corrupt during data transfer
+                newImage = new Buffer(newImage).toString('base64');
+                    
+                // Pass the mime type, which is required by the SVG editor in order to be able to create a data url for the image
+                res.setHeader("Content-Type", "image/" + imageInfo.type);
+                res.setHeader("Content-Length", newImage.length);
+                
+                // Pas the resolution, so this can be stored (via the config screen) into the node
+                res.setHeader("Image-width", imageInfo.width);
+                res.setHeader("Image-height", imageInfo.height);
+                
+                res.writeHead(200);
+
+                // Pass the new input image to the flow editor config screen
+                res.end(newImage);
+            }
+            else {
+                // We cannot return the image anymore to the client, since the resp(onse) object is already closed
+                console.log("Image has only arrived after the timeout interval, so it will be ignored");
+            }
+        }
+       
+        // Start waiting (during 3000 msec) for an new input image to arrive
+        polygonEditorNode.addListener('image_arrived', imageArrivedListener);
+
+        // Send an output message (on the second output) to allow users to load the image on the fly (and inject it)
+        polygonEditorNode.send([null, {topic: "image_request"}]);
     });
 }
