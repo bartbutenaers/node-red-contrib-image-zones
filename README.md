@@ -66,18 +66,18 @@ The following demo shows how this node can be used to draw zone polygons on top 
 
 ## Example flows
 
-### Continious image stream
+### Continuous image stream
 
-I the following example flow, a continious camera stream is simulated by an inject node that injects every two seconds an image:
+I the following example flow, a continuous camera stream is simulated by an inject node that injects every two seconds an image:
 
 ![image](https://user-images.githubusercontent.com/14224149/141680570-5a5c98e7-b9be-49f8-897b-819a27f55a74.png)
 ```
 [{"id":"01badc6b2de5cc88","type":"http request","z":"4a680cc36387c937","name":"Get image","method":"GET","ret":"bin","paytoqs":"ignore","url":"https://upload.wikimedia.org/wikipedia/commons/4/4a/In_the_driveway_%28258053850%29.jpg","tls":"","persist":false,"proxy":"","authType":"","senderr":false,"x":1450,"y":480,"wires":[["7a271b7664f39474"]]},{"id":"1d0e8df6eda1e5a3","type":"debug","z":"4a680cc36387c937","name":"zones","active":true,"tosidebar":true,"console":false,"tostatus":false,"complete":"zones","targetType":"msg","statusVal":"","statusType":"auto","x":1790,"y":480,"wires":[]},{"id":"7a271b7664f39474","type":"image-zone-editor","z":"4a680cc36387c937","inputField":"payload","outputField":"zones","inputFieldType":"msg","outputFieldType":"msg","polygons":[{"name":"Zone 1","fillColor":"#e72d18","opacity":"50","render":false,"points":[{"x":3,"y":231},{"x":137,"y":197},{"x":247,"y":206},{"x":151,"y":258},{"x":89,"y":236},{"x":47,"y":296},{"x":3,"y":297}]},{"name":"Zone 2","fillColor":"#1bde11","opacity":"50","render":false,"points":[{"x":255,"y":209},{"x":123,"y":278},{"x":339,"y":287},{"x":369,"y":252},{"x":257,"y":237},{"x":307,"y":208}]}],"imageWidth":"800","imageHeight":"600","name":"","x":1630,"y":480,"wires":[["1d0e8df6eda1e5a3"],[]]},{"id":"269ed2c5bc63ce10","type":"inject","z":"4a680cc36387c937","name":"Inject image","props":[],"repeat":"2","crontab":"","once":false,"onceDelay":0.1,"topic":"","x":1270,"y":480,"wires":[["01badc6b2de5cc88"]]}]
 ```
 
-When the *"Refresh image"* button is clicked, you will get the ***next image*** that is injected into this node.  Since images are being injected continiously, we will have no problems to get and display an image.
+When the *"Refresh image"* button is clicked, you will get the ***next image*** that is injected into this node.  Since images are being injected continuously, we will have no problems to get and display an image.
 
-### Non-continious image stream
+### Non-continuous image stream
 
 When the image stream is non-continious, the *"Refresh image"* button won't work.  Indeed the node will try to wait about 5 seconds for an image to be injected, and an error will be displayed if no image arrives:
 
