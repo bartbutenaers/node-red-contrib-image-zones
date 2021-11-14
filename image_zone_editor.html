@@ -661,5 +661,25 @@
 </script>
 
 <script type="text/x-red" data-help-name="image-zone-editor">
-
+    <p>A Node-RED node to draw and edit (polygon) zones on images.</p>
+    <p>See my <a target="_blank" href="https://github.com/bartbutenaers/node-red-contrib-image-zones/blob/main/README.md">Github readme</a> page for more information and example flows.  Note that those example flows are also available via the Node-RED <a target="_blank" href="notused" onclick="RED.actions.invoke('core:show-import-dialog');return false;">Import dialog</a>.</p>
+    <p><strong>Input image:</strong><br/>
+    Specify in which field of the input message the input image will arrive.  By default the <code>msg.payload</code> will be used.</p>
+    <p><strong>Output zones:</strong><br/>
+    Specify in which field of the output message the zone definitions will be send.  By default the <code>msg.payload</code> will be used, which you need to change if the original input image should not be overwritten.</p>
+    <p><strong>Zones:</strong><br/>
+    Specify all the required zones:
+    <ul>
+        <li><i>Name:</i> the <b>unique</b> name of the zone.</li>
+        <li><i>Color:</i> the color that will be used for the zone polygon stroke color and fill color.</li>
+        <li><i>Opacity:</i> the opacity percentage, to specify how transparant the zone polygon should be.</li>
+        <li><i>Render:</i> whether this polygon should be rendered on the image.  TODO: currently not implemented yet!!</li>
+    </ul></p>
+    <p><strong>Drawing editor:</strong><br/>
+    <ul>
+        <li>When creating a new polygon, every left-mouse click will add a new point to the zone polygon.</li>
+        <li>When editing an existing polygon, a left-mouse click near a polygon edge will add a new point on that edge.</li>
+        <li>When editing an existing polygon, a SHIFT left-mouse click near a polygon point will remove that point.</li>
+        <li>When editing an existing polygon, a left-mouse down near a point - followed by dragging that point around - will move that point (until the mouse is released again).</li>
+    </ul></p>
 </script>
