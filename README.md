@@ -7,7 +7,12 @@ Run the following npm command in your Node-RED user directory (typically ~/.node
 npm install node-red-contrib-image-zones
 ```
 
-Thanks to [hotnipi](https://github.com/hotNipi) for helping me to solve some styling issues!  And [wb666greene](https://github.com/wb666greene] for reviewing and sharing his AI  experience!
+Thanks to [hotnipi](https://github.com/hotNipi) for helping me to solve some styling issues!  And also thanks to [wb666greene](https://github.com/wb666greene] and [krambriw](https://github.com/krambriw) for reviewing this node, and sharing their AI video surveillance experience with me!
+
+## Support my Node-RED developments
+Please buy my wife a coffee to keep her happy, while I am busy developing Node-RED stuff for you ...
+
+<a href="https://www.buymeacoffee.com/bartbutenaers" target="_blank"><img src="https://www.buymeacoffee.com/assets/img/custom_images/orange_img.png" alt="Buy my wife a coffee" style="height: 41px !important;width: 174px !important;box-shadow: 0px 3px 2px 0px rgba(190, 190, 190, 0.5) !important;-webkit-box-shadow: 0px 3px 2px 0px rgba(190, 190, 190, 0.5) !important;" ></a>
 
 ## Demo
 
