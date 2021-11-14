@@ -7,7 +7,7 @@ Run the following npm command in your Node-RED user directory (typically ~/.node
 npm install node-red-contrib-image-zones
 ```
 
-Thanks to [hotnipi](https://github.com/hotNipi) for helping me to solve some styling issues!  And also thanks to [wb666greene](https://github.com/wb666greene] and [krambriw](https://github.com/krambriw) for reviewing this node, and sharing their AI video surveillance experience with me!
+Thanks to [hotnipi](https://github.com/hotNipi) for helping me to solve some styling issues!  And also thanks to [wb666greene](https://github.com/wb666greene) and [krambriw](https://github.com/krambriw) for reviewing this node, and sharing their AI video surveillance experience with me!
 
 
 ***WARNING: THIS IS AN EXPERIMENTAL NODE, WHICH MEANS THERE CAN ARRIVE BREAKING CHANGES IN THE NEAR FUTURE !!!!!***
