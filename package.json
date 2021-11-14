@@ -3,7 +3,7 @@
     "version"      : "1.0.0",
     "description"  : "A Node-RED node to draw and edit (polygon) zones on images",
     "dependencies": {
-        "image-type": "^4.1.0",
+        "image-size": "^1.0.0",
         "is-base64": "^1.1.0"
     },
     "author": {
