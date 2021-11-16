@@ -644,8 +644,8 @@
             </div>
             <div class="form-row">
                 <!-- We show all images as 400x300 -->
-                <div style="position: relative; width: 100%; vertical-align: middle; margin: 0;">
-                    <svg id="svg_drawing" tabindex="0" viewBox="0 0 400 300" preserveAspectRatio="xMinYMin meet" style="display: inline-block; position: absolute; top: 0; left: 0;">
+                <div style="position: relative; width: 100%; vertical-align: middle; margin: 0; display: flex; align-content: center; justify-content: center; align-items: center;">
+                    <svg id="svg_drawing" tabindex="0" width="400" height="300" viewBox="0 0 400 300" preserveAspectRatio="xMinYMin meet" style="display: inline-block;">
                         <defs>
                             <marker id="polygonPointMarker" markerWidth="8" markerHeight="8" refX="5" refY="5">
                                 
@@ -659,6 +659,12 @@
         </div>
     </div>
 </script>
+
+<style>
+    #svg_drawing:focus {
+       outline: none;
+    }
+</style>
 
 <script type="text/x-red" data-help-name="image-zone-editor">
     <p>A Node-RED node to draw and edit (polygon) zones on images.</p>
