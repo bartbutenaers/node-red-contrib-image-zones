@@ -194,8 +194,7 @@
             // Temporary string containing all polygon points that have been added already during polygon creation, i.e. all points where
             // we have clicked with the mouse.  It does NOT contain the current (moving) mouse location, which is not confirmed yet by a click...
             node.allConfirmedSvgPolygonPoints = '';
-
-// TODO de events aan de image koppelen -> image moet altijd in de svg zitten.  
+  
             node.backgroundImage.on('mousedown', function (event) {
                 // Determine the current mouse position within the SVG coordinate system
                 node.point = movePointToEventPosition(node.svg, node.point, event);
@@ -377,8 +376,7 @@
                     }
                     else {
                         // Allow the user to edit the current existing SVG polygon
-                        node.editorMode = "EDIT";
-                        // TODO show a text "click on the editor to start drawing the polygon"                    
+                        node.editorMode = "EDIT";                    
                     }
                     
                     // A (circle) marker should be displayed on every point of the selected polygon
@@ -457,7 +455,7 @@
                 header: $("<div>").css({"margin-left":"6px"}).append($.parseHTML(
                     "<div style='width:25%; margin-left:5px; display: inline-grid'><b>Name</b></div>" +
                     "<div style='width:7%; margin-left:5px; display: inline-grid'><b>Color</b></div>" +  
-                    "<div style='width:10%; margin-left:5px; display: inline-grid'><b>Opacity</b></div>" +
+                    "<div style='width:15%; margin-left:5px; display: inline-grid'><b>Opacity</b></div>" +
                     "<div style='width:10%; margin-left:5px; display: inline-grid'><b>Render</b></div>" 
                 )),
                 addItem: function(container, i, polygon) {
@@ -486,7 +484,7 @@
                     // Column 3
                     var opacityField = $('<input/>',{class:"node-input-polygon-opacity",type:"number"})
                         .attr({"max":100, "min":0})
-                        .css({"width":"10%","margin-left":"5px","margin-right":"5px"}).appendTo(row);
+                        .css({"width":"15%","margin-left":"5px","margin-right":"5px"}).appendTo(row);
                     opacityField.prop('required',true);
                     opacityField.val(polygon.opacity);
                     
@@ -617,7 +615,7 @@
     </br>
     <div class="form-row">
         <!-- Tabsheets -->
-        <ul style="background: #fff; min-width: 600px; margin-bottom: 20px;" id="node-polygon-tabs"></ul>
+        <ul style="background: #fff; min-width: 450px; margin-bottom: 20px;" id="node-polygon-tabs"></ul>
     </div>
     <div id="node-polygon-tabs-content" style="min-height: 150px">
         <!-- Content of all tabsheets -->
@@ -645,7 +643,7 @@
             <div class="form-row">
                 <!-- We show all images as 400x300 -->
                 <div style="position: relative; width: 100%; vertical-align: middle; margin: 0; display: flex; align-content: center; justify-content: center; align-items: center;">
-                    <svg id="svg_drawing" tabindex="0" width="400" height="300" viewBox="0 0 400 300" preserveAspectRatio="xMinYMin meet" style="display: inline-block;">
+                    <svg id="svg_drawing" tabindex="0" width="400" height="300" viewBox="0 0 400 300" preserveAspectRatio="xMinYMin meet" style="display: inline-block; border: 1px solid grey">
                         <defs>
                             <marker id="polygonPointMarker" markerWidth="8" markerHeight="8" refX="5" refY="5">
                                 
