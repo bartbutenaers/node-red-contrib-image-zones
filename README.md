@@ -66,9 +66,11 @@ The following demo shows how this node can be used to draw zone polygons on top 
 
 ## Example flows
 
-### Continuous image stream
+### Continuous image stream (normal usage)
 
-I the following example flow, a continuous camera stream is simulated by an inject node that injects every two seconds an image:
+In normal conditions messages will pass through this node, containing images of a continuous camera stream.  The zone polygons (whose coordinates are being stored in this node), will be added to those input messages.  This way the output messages will contain both the camera images, and the related zone polygons.
+
+The following example flow simulates a continuous camera stream, by an inject node that injects every two seconds an image:
 
 ![image](https://user-images.githubusercontent.com/14224149/141680570-5a5c98e7-b9be-49f8-897b-819a27f55a74.png)
 ```
@@ -77,15 +79,17 @@ I the following example flow, a continuous camera stream is simulated by an inje
 
 When the *"Refresh image"* button is clicked, you will get the ***next image*** that is injected into this node.  Since images are being injected continuously, we will have no problems to get and display an image.
 
-### Non-continuous image stream
+### Non-continuous image stream (exceptional usage)
 
 When the image stream is non-continious, the *"Refresh image"* button won't work.  Indeed the node will try to wait about 5 seconds for an image to be injected, and an error will be displayed if no image arrives:
 
    ![no image](https://user-images.githubusercontent.com/14224149/141680770-31edab20-57ed-4d65-8ff8-e23fc5fdedbd.png)
-   
+
 To solve this, a second output has been added to this node.  When the *"Refresh image"* button is clicked, an output message will be send on that second output.  That output message can be used to trigger capturing a snapshot image from the camera, which will be injected into this node (and displayed in the drawing editor):
 
    ![snapshot injection](https://user-images.githubusercontent.com/14224149/141681013-cda4fdde-4bc1-4f55-b185-0a6279e03485.png)
 ```
 [{"id":"aad721854c9bd0d6","type":"http request","z":"4a680cc36387c937","name":"","method":"GET","ret":"bin","paytoqs":"ignore","url":"https://upload.wikimedia.org/wikipedia/commons/4/4a/In_the_driveway_%28258053850%29.jpg","tls":"","persist":false,"proxy":"","authType":"","senderr":false,"x":1430,"y":240,"wires":[["7eb22529b52903fc"]]},{"id":"d1706252e6b080d3","type":"debug","z":"4a680cc36387c937","name":"zones","active":true,"tosidebar":true,"console":false,"tostatus":false,"complete":"true","targetType":"full","statusVal":"","statusType":"auto","x":1770,"y":220,"wires":[]},{"id":"7eb22529b52903fc","type":"image-zone-editor","z":"4a680cc36387c937","inputField":"payload","outputField":"zones","inputFieldType":"msg","outputFieldType":"msg","polygons":[{"name":"Zone 1","fillColor":"#e72d18","opacity":"50","render":false,"points":[{"x":3,"y":231},{"x":137,"y":197},{"x":247,"y":206},{"x":151,"y":258},{"x":89,"y":236},{"x":47,"y":296},{"x":3,"y":297}]},{"name":"Zone 2","fillColor":"#1bde11","opacity":"50","render":false,"points":[{"x":255,"y":209},{"x":123,"y":278},{"x":339,"y":287},{"x":369,"y":252},{"x":257,"y":237},{"x":307,"y":208}]}],"imageWidth":"800","imageHeight":"600","name":"","x":1610,"y":240,"wires":[["d1706252e6b080d3"],["70d41049882a26bb"]]},{"id":"7f7b919fe50c5eaf","type":"link in","z":"4a680cc36387c937","name":"Image request","links":["70d41049882a26bb"],"x":1250,"y":280,"wires":[["aad721854c9bd0d6"]],"l":true},{"id":"70d41049882a26bb","type":"link out","z":"4a680cc36387c937","name":"Image request","mode":"link","links":["7f7b919fe50c5eaf"],"x":1800,"y":280,"wires":[],"l":true},{"id":"3f7e5cc22760f54b","type":"function","z":"4a680cc36387c937","name":"A non-continious stream","func":"\nreturn msg;","outputs":1,"noerr":0,"initialize":"","finalize":"","libs":[],"x":1210,"y":220,"wires":[["aad721854c9bd0d6"]]}]
 ```
+
+This way at least it can be ensured that an image will be loaded, when the *"Refresh image"* button is being clicked.
